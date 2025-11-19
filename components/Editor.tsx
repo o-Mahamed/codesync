@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import MonacoEditor from '@monaco-editor/react'
 import { io, Socket } from 'socket.io-client'
-import type { editor } from 'monaco-editor'
+import type * as Monaco from 'monaco-editor'
 import { getColorForUser } from '@/lib/colors'
 import OutputPanel from './OutputPanel'
 
@@ -23,6 +23,13 @@ interface User {
   }
 }
 
+// Declare global monaco
+declare global {
+  interface Window {
+    monaco: typeof Monaco
+  }
+}
+
 export default function Editor({ roomId, initialCode, language }: EditorProps) {
   const [code, setCode] = useState(initialCode)
   const [users, setUsers] = useState<User[]>([])
@@ -31,7 +38,8 @@ export default function Editor({ roomId, initialCode, language }: EditorProps) {
   const [output, setOutput] = useState('')
   const [isExecuting, setIsExecuting] = useState(false)
   const [executionError, setExecutionError] = useState<string | null>(null)
-  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+  const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null)
+  const monacoRef = useRef<typeof Monaco | null>(null)
   const socketRef = useRef<Socket | null>(null)
   const isRemoteChange = useRef(false)
   const decorationsRef = useRef<string[]>([])
@@ -80,7 +88,7 @@ export default function Editor({ roomId, initialCode, language }: EditorProps) {
       setUsers(prev => prev.filter(u => u.userId !== user.userId))
     })
 
-    socketInstance.on('cursor-update', (data: { position: any, userId: string, username: string }) => {
+    socketInstance.on('cursor-update', (data: { position: { lineNumber: number, column: number }, userId: string, username: string }) => {
       setUsers(prev => prev.map(u => 
         u.userId === data.userId 
           ? { ...u, cursor: data.position }
@@ -96,15 +104,16 @@ export default function Editor({ roomId, initialCode, language }: EditorProps) {
 
   // Update cursor decorations
   useEffect(() => {
-    if (!editorRef.current) return
+    if (!editorRef.current || !monacoRef.current) return
 
     const editor = editorRef.current
-    const newDecorations: editor.IModelDeltaDecoration[] = []
+    const monaco = monacoRef.current
+    const newDecorations: Monaco.editor.IModelDeltaDecoration[] = []
 
     users.forEach(user => {
       if (user.cursor && user.userId !== socketRef.current?.id) {
         newDecorations.push({
-          range: new window.monaco.Range(
+          range: new monaco.Range(
             user.cursor.lineNumber,
             user.cursor.column,
             user.cursor.lineNumber,
@@ -112,12 +121,12 @@ export default function Editor({ roomId, initialCode, language }: EditorProps) {
           ),
           options: {
             className: 'remote-cursor',
-            stickiness: window.monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
           }
         })
 
         newDecorations.push({
-          range: new window.monaco.Range(
+          range: new monaco.Range(
             user.cursor.lineNumber,
             1,
             user.cursor.lineNumber,
@@ -153,8 +162,9 @@ export default function Editor({ roomId, initialCode, language }: EditorProps) {
     }
   }
 
-  const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor) => {
+  const handleEditorDidMount = (editor: Monaco.editor.IStandaloneCodeEditor, monaco: typeof Monaco) => {
     editorRef.current = editor
+    monacoRef.current = monaco
 
     editor.onDidChangeCursorPosition((e) => {
       if (socketRef.current && isConnected) {
@@ -170,7 +180,7 @@ export default function Editor({ roomId, initialCode, language }: EditorProps) {
     })
 
     // Add keyboard shortcut for running code (Ctrl/Cmd + Enter)
-    editor.addCommand(window.monaco.KeyMod.CtrlCmd | window.monaco.KeyCode.Enter, () => {
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
       handleExecuteCode()
     })
   }
