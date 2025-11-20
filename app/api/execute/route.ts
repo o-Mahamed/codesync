@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { VM } from 'vm2'
 
 export async function POST(request: Request) {
   try {
@@ -17,44 +16,52 @@ export async function POST(request: Request) {
 
     if (language === 'javascript') {
       try {
-        // Create a sandboxed VM
-        const vm = new VM({
-          timeout: 5000, // 5 second timeout
-          sandbox: {
-            console: {
-              log: (...args: any[]) => {
-                output += args.map(arg => 
-                  typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-                ).join(' ') + '\n'
-              },
-              error: (...args: any[]) => {
-                output += 'ERROR: ' + args.map(arg => String(arg)).join(' ') + '\n'
-              },
-              warn: (...args: any[]) => {
-                output += 'WARN: ' + args.map(arg => String(arg)).join(' ') + '\n'
-              }
-            }
+        // Capture console output
+        const logs: string[] = []
+        const customConsole = {
+          log: (...args: any[]) => {
+            logs.push(args.map(arg => 
+              typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' '))
+          },
+          error: (...args: any[]) => {
+            logs.push('ERROR: ' + args.map(arg => String(arg)).join(' '))
+          },
+          warn: (...args: any[]) => {
+            logs.push('WARN: ' + args.map(arg => String(arg)).join(' '))
           }
-        })
+        }
 
-        // Run the code
-        const result = vm.run(code)
+        // Create a function with the code
+        const fn = new Function('console', code)
         
-        // If there's a return value, add it to output
+        // Execute with timeout
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Execution timeout (5 seconds)')), 5000)
+        })
+        
+        const executePromise = Promise.resolve(fn(customConsole))
+        
+        const result = await Promise.race([executePromise, timeoutPromise])
+        
+        output = logs.join('\n')
+        
         if (result !== undefined) {
-          output += `\nReturn value: ${typeof result === 'object' ? JSON.stringify(result, null, 2) : result}`
+          output += `\n\nReturn value: ${typeof result === 'object' ? JSON.stringify(result, null, 2) : result}`
+        }
+
+        if (!output) {
+          output = '(No output - code executed successfully)'
         }
       } catch (err) {
         error = err instanceof Error ? err.message : 'Unknown error'
-        output += `\n❌ Error: ${error}`
+        output = `❌ Error: ${error}`
       }
     } else if (language === 'python') {
-      // For Python, we'll need to call an external service or use a different approach
-      // For now, return a message
-      output = '🐍 Python execution coming soon! For now, only JavaScript is supported.'
-      error = 'Python execution not yet implemented'
+      output = '🐍 Python execution coming soon! Only JavaScript is currently supported.'
+      error = 'Python not yet implemented'
     } else {
-      output = `⚠️ Language "${language}" is not supported yet. Only JavaScript is currently available.`
+      output = `⚠️ Language "${language}" is not supported. Only JavaScript is available.`
       error = 'Unsupported language'
     }
 

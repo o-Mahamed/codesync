@@ -29,35 +29,29 @@ app.prepare().then(() => {
     }
   })
 
-  // Store active rooms and their users
   const rooms = new Map<string, Set<string>>()
 
   io.on('connection', (socket) => {
     console.log('Client connected:', socket.id)
 
-    // Join a room
     socket.on('join-room', (roomId: string, username: string) => {
       socket.join(roomId)
       
-      // Track users in room
       if (!rooms.has(roomId)) {
         rooms.set(roomId, new Set())
       }
       rooms.get(roomId)?.add(socket.id)
 
-      // Store user info
       socket.data.roomId = roomId
       socket.data.username = username || 'Anonymous'
 
       console.log(`User ${socket.data.username} joined room ${roomId}`)
 
-      // Notify others in room
       socket.to(roomId).emit('user-joined', {
         userId: socket.id,
         username: socket.data.username
       })
 
-      // Send current users to new user
       const roomUsers = Array.from(rooms.get(roomId) || [])
         .map(id => {
           const userSocket = io.sockets.sockets.get(id)
@@ -70,16 +64,13 @@ app.prepare().then(() => {
       socket.emit('room-users', roomUsers)
     })
 
-    // Handle code changes
     socket.on('code-change', (data: { roomId: string, code: string, userId: string }) => {
-      // Broadcast to everyone in room except sender
       socket.to(data.roomId).emit('code-update', {
         code: data.code,
         userId: data.userId
       })
     })
 
-    // Handle cursor position changes
     socket.on('cursor-change', (data: { roomId: string, position: any, userId: string }) => {
       socket.to(data.roomId).emit('cursor-update', {
         position: data.position,
@@ -88,19 +79,16 @@ app.prepare().then(() => {
       })
     })
 
-    // Handle disconnect
     socket.on('disconnect', () => {
       const roomId = socket.data.roomId
       
       if (roomId && rooms.has(roomId)) {
         rooms.get(roomId)?.delete(socket.id)
         
-        // Clean up empty rooms
         if (rooms.get(roomId)?.size === 0) {
           rooms.delete(roomId)
         }
 
-        // Notify others
         socket.to(roomId).emit('user-left', {
           userId: socket.id,
           username: socket.data.username

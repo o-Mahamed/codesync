@@ -23,7 +23,6 @@ interface User {
   }
 }
 
-// Declare global monaco
 declare global {
   interface Window {
     monaco: typeof Monaco
@@ -44,7 +43,6 @@ export default function Editor({ roomId, initialCode, language }: EditorProps) {
   const isRemoteChange = useRef(false)
   const decorationsRef = useRef<string[]>([])
 
-  // Initialize Socket.io connection
   useEffect(() => {
     const socketInstance = io('http://localhost:3000', {
       transports: ['websocket']
@@ -102,7 +100,6 @@ export default function Editor({ roomId, initialCode, language }: EditorProps) {
     }
   }, [roomId])
 
-  // Update cursor decorations
   useEffect(() => {
     if (!editorRef.current || !monacoRef.current) return
 
@@ -179,7 +176,6 @@ export default function Editor({ roomId, initialCode, language }: EditorProps) {
       }
     })
 
-    // Add keyboard shortcut for running code (Ctrl/Cmd + Enter)
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
       handleExecuteCode()
     })
@@ -191,13 +187,35 @@ export default function Editor({ roomId, initialCode, language }: EditorProps) {
     setOutput('Running code...\n\n')
 
     try {
+      console.log('Executing code:', { code, language })
+
       const response = await fetch('/api/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, language })
       })
 
-      const data = await response.json()
+      console.log('Response status:', response.status)
+      console.log('Response headers:', Object.fromEntries(response.headers))
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Error response:', errorText)
+        throw new Error(`HTTP ${response.status}: ${errorText}`)
+      }
+
+      const text = await response.text()
+      console.log('Response text:', text)
+
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch (e) {
+        console.error('JSON parse error:', e)
+        throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`)
+      }
+
+      console.log('Parsed data:', data)
 
       if (data.error) {
         setExecutionError(data.error)
@@ -227,7 +245,6 @@ export default function Editor({ roomId, initialCode, language }: EditorProps) {
         }
       `}</style>
 
-      {/* Top bar */}
       <div className="bg-gray-800 px-4 py-2 flex items-center justify-between border-b border-gray-700">
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
@@ -262,7 +279,6 @@ export default function Editor({ roomId, initialCode, language }: EditorProps) {
         </div>
       </div>
 
-      {/* Editor */}
       <div className="flex-1 overflow-hidden">
         <MonacoEditor
           height="100%"
@@ -282,7 +298,6 @@ export default function Editor({ roomId, initialCode, language }: EditorProps) {
         />
       </div>
 
-      {/* Output Panel */}
       <OutputPanel
         onExecute={handleExecuteCode}
         output={output}
