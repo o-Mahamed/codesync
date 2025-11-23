@@ -7,14 +7,14 @@ interface OutputPanelProps {
   output: string
   isExecuting: boolean
   error: string | null
+  executionTime?: number
 }
 
-export default function OutputPanel({ onExecute, output, isExecuting, error }: OutputPanelProps) {
+export default function OutputPanel({ onExecute, output, isExecuting, error, executionTime }: OutputPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true)
 
   return (
     <div className={`bg-gray-900 border-t border-gray-700 flex flex-col transition-all duration-300 ${isExpanded ? 'h-64' : 'h-12'}`}>
-      {/* Header */}
       <div className="bg-gray-800 px-4 py-2 flex items-center justify-between border-b border-gray-700">
         <div className="flex items-center gap-3">
           <button
@@ -34,6 +34,11 @@ export default function OutputPanel({ onExecute, output, isExecuting, error }: O
           {error && (
             <span className="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded">
               Error
+            </span>
+          )}
+          {executionTime !== undefined && !isExecuting && (
+            <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
+              {executionTime}ms
             </span>
           )}
         </div>
@@ -62,7 +67,6 @@ export default function OutputPanel({ onExecute, output, isExecuting, error }: O
         </button>
       </div>
 
-      {/* Output content */}
       {isExpanded && (
         <div className="flex-1 overflow-auto p-4">
           <pre className="text-sm text-gray-300 font-mono whitespace-pre-wrap">

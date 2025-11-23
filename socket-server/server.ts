@@ -31,10 +31,14 @@ app.prepare().then(() => {
 
   const rooms = new Map<string, Set<string>>()
 
+  console.log('🚀 Socket.io server initialized')
+
   io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id)
+    console.log('✅ Client connected:', socket.id)
 
     socket.on('join-room', (roomId: string, username: string) => {
+      console.log(`👤 User "${username}" (${socket.id}) joining room "${roomId}"`)
+      
       socket.join(roomId)
       
       if (!rooms.has(roomId)) {
@@ -43,10 +47,9 @@ app.prepare().then(() => {
       rooms.get(roomId)?.add(socket.id)
 
       socket.data.roomId = roomId
-      socket.data.username = username || 'Anonymous'
+      socket.data.username = username
 
-      console.log(`User ${socket.data.username} joined room ${roomId}`)
-
+      console.log(`📢 Broadcasting user-joined to room "${roomId}"`)
       socket.to(roomId).emit('user-joined', {
         userId: socket.id,
         username: socket.data.username
@@ -62,11 +65,20 @@ app.prepare().then(() => {
         })
       
       socket.emit('room-users', roomUsers)
+      console.log(`✨ Total users in room "${roomId}":`, rooms.get(roomId)?.size)
     })
 
     socket.on('code-change', (data: { roomId: string, code: string, userId: string }) => {
       socket.to(data.roomId).emit('code-update', {
         code: data.code,
+        userId: data.userId
+      })
+    })
+
+    socket.on('language-change', (data: { roomId: string, language: string, userId: string }) => {
+      console.log(`🔄 Language changed to ${data.language} by ${data.userId}`)
+      socket.to(data.roomId).emit('language-change', {
+        language: data.language,
         userId: data.userId
       })
     })
@@ -82,6 +94,8 @@ app.prepare().then(() => {
     socket.on('disconnect', () => {
       const roomId = socket.data.roomId
       
+      console.log(`❌ Client disconnected: ${socket.id}`)
+      
       if (roomId && rooms.has(roomId)) {
         rooms.get(roomId)?.delete(socket.id)
         
@@ -94,17 +108,16 @@ app.prepare().then(() => {
           username: socket.data.username
         })
       }
-
-      console.log('Client disconnected:', socket.id)
     })
   })
 
   httpServer
     .once('error', (err) => {
-      console.error(err)
+      console.error('❌ Server error:', err)
       process.exit(1)
     })
     .listen(port, () => {
       console.log(`> Ready on http://${hostname}:${port}`)
+      console.log(`> Socket.io server running`)
     })
 })
