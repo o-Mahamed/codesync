@@ -30,6 +30,7 @@ app.prepare().then(() => {
   })
 
   const rooms = new Map<string, Set<string>>()
+  const chatHistory = new Map<string, any[]>()
 
   console.log('🚀 Socket.io server initialized')
 
@@ -49,7 +50,6 @@ app.prepare().then(() => {
       socket.data.roomId = roomId
       socket.data.username = username
 
-      console.log(`📢 Broadcasting user-joined to room "${roomId}"`)
       socket.to(roomId).emit('user-joined', {
         userId: socket.id,
         username: socket.data.username
@@ -76,7 +76,6 @@ app.prepare().then(() => {
     })
 
     socket.on('language-change', (data: { roomId: string, language: string, userId: string }) => {
-      console.log(`🔄 Language changed to ${data.language} by ${data.userId}`)
       socket.to(data.roomId).emit('language-change', {
         language: data.language,
         userId: data.userId
@@ -91,6 +90,25 @@ app.prepare().then(() => {
       })
     })
 
+    // Chat system
+    socket.on('chat-message', (data: { roomId: string, message: any }) => {
+      console.log(`💬 Chat message in room ${data.roomId}:`, data.message.message)
+      
+      // Store in chat history
+      if (!chatHistory.has(data.roomId)) {
+        chatHistory.set(data.roomId, [])
+      }
+      chatHistory.get(data.roomId)?.push(data.message)
+      
+      // Broadcast to all users in room including sender
+      io.to(data.roomId).emit('chat-message', data.message)
+    })
+
+    socket.on('request-chat-history', (roomId: string) => {
+      const history = chatHistory.get(roomId) || []
+      socket.emit('chat-history', history)
+    })
+
     socket.on('disconnect', () => {
       const roomId = socket.data.roomId
       
@@ -101,6 +119,13 @@ app.prepare().then(() => {
         
         if (rooms.get(roomId)?.size === 0) {
           rooms.delete(roomId)
+          // Clean up chat history for empty rooms after 1 hour
+          setTimeout(() => {
+            if (!rooms.has(roomId)) {
+              chatHistory.delete(roomId)
+              console.log(`🗑️  Cleaned up chat history for room ${roomId}`)
+            }
+          }, 3600000)
         }
 
         socket.to(roomId).emit('user-left', {

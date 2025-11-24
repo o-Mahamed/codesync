@@ -7,10 +7,12 @@ import type * as Monaco from 'monaco-editor'
 import { getColorForUser } from '@/lib/colors'
 import OutputPanel from './OutputPanel'
 import UsernameModal from './UsernameModal'
-import UserList from './UserList'
+import Sidebar from './Sidebar'
 import CopyLinkButton from './CopyLinkButton'
 import LanguageSelector from './LanguageSelector'
 import Toast from './Toast'
+import Chat from './Chat'
+import GitPanel from './GitPanel'
 
 interface EditorProps {
   roomId: string
@@ -352,6 +354,8 @@ export default function Editor({ roomId, initialCode, language: initialLanguage 
             <div className="flex items-center gap-3">
               <LanguageSelector currentLanguage={language} onLanguageChange={handleLanguageChange} />
               <CopyLinkButton roomId={roomId} />
+              <GitPanel roomId={roomId} code={code} language={language} />
+
             </div>
           </div>
 
@@ -385,8 +389,14 @@ export default function Editor({ roomId, initialCode, language: initialLanguage 
 />
         </div>
 
-        {/* User list sidebar */}
-        <UserList users={users} currentUserId={currentUser?.id || null} />
+        {/* Sidebar with Users and Chat */}
+        <Sidebar 
+          users={users} 
+          currentUserId={currentUser?.id || null}
+          socket={socketRef.current}
+          roomId={roomId}
+          currentUser={currentUser}
+/>
       </div>
     </>
   )
