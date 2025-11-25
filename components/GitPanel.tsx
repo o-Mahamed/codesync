@@ -10,16 +10,18 @@ interface GitPanelProps {
 
 export default function GitPanel({ roomId, code, language }: GitPanelProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [repoUrl, setRepoUrl] = useState('')
+  const [token, setToken] = useState('')
+  const [owner, setOwner] = useState('')
+  const [repo, setRepo] = useState('')
   const [branch, setBranch] = useState('main')
   const [commitMessage, setCommitMessage] = useState('')
   const [fileName, setFileName] = useState(`code.${language === 'javascript' ? 'js' : language === 'python' ? 'py' : language === 'typescript' ? 'ts' : language === 'java' ? 'java' : language === 'cpp' ? 'cpp' : language === 'go' ? 'go' : 'txt'}`)
   const [isCommitting, setIsCommitting] = useState(false)
-  const [status, setStatus] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null)
+  const [status, setStatus] = useState<{ message: string, type: 'success' | 'error' | 'info', url?: string } | null>(null)
 
   const handleCommit = async () => {
-    if (!repoUrl || !commitMessage || !fileName) {
-      setStatus({ message: 'Please fill in all fields', type: 'error' })
+    if (!token || !owner || !repo || !commitMessage || !fileName) {
+      setStatus({ message: 'Please fill in all required fields', type: 'error' })
       return
     }
 
@@ -31,7 +33,9 @@ export default function GitPanel({ roomId, code, language }: GitPanelProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          repoUrl,
+          token,
+          owner,
+          repo,
           branch,
           fileName,
           code,
@@ -42,13 +46,17 @@ export default function GitPanel({ roomId, code, language }: GitPanelProps) {
       const data = await response.json()
 
       if (response.ok) {
-        setStatus({ message: 'Successfully committed to GitHub!', type: 'success' })
+        setStatus({ 
+          message: 'Successfully committed to GitHub!', 
+          type: 'success',
+          url: data.commitUrl
+        })
         setCommitMessage('')
       } else {
         setStatus({ message: data.error || 'Failed to commit', type: 'error' })
       }
     } catch (error) {
-      setStatus({ message: 'Failed to commit to GitHub', type: 'error' })
+      setStatus({ message: 'Failed to commit to GitHub. Please check your connection.', type: 'error' })
     } finally {
       setIsCommitting(false)
     }
@@ -71,7 +79,7 @@ export default function GitPanel({ roomId, code, language }: GitPanelProps) {
       {/* Git modal */}
       {isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full shadow-2xl border border-gray-700">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full shadow-2xl border border-gray-700 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -95,30 +103,73 @@ export default function GitPanel({ roomId, code, language }: GitPanelProps) {
                 status.type === 'error' ? 'bg-red-500/20 border border-red-500 text-red-200' :
                 'bg-blue-500/20 border border-blue-500 text-blue-200'
               }`}>
-                {status.message}
+                <p>{status.message}</p>
+                {status.url && (
+                  <a 
+                    href={status.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm underline hover:text-white mt-2 block"
+                  >
+                    View commit on GitHub →
+                  </a>
+                )}
               </div>
             )}
 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  GitHub Personal Access Token
+                  GitHub Personal Access Token *
                 </label>
                 <input
                   type="password"
                   placeholder="ghp_..."
-                  value={repoUrl}
-                  onChange={(e) => setRepoUrl(e.target.value)}
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
                   className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:border-blue-500"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Get a token from GitHub Settings → Developer settings → Personal access tokens
+                  Create a token at: GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
                 </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Required scopes: <code className="bg-gray-900 px-1 rounded">repo</code>
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Owner *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="username"
+                    value={owner}
+                    onChange={(e) => setOwner(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Your GitHub username</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Repository *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="repo-name"
+                    value={repo}
+                    onChange={(e) => setRepo(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Repository name</p>
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  File Name
+                  File Name *
                 </label>
                 <input
                   type="text"
@@ -126,6 +177,9 @@ export default function GitPanel({ roomId, code, language }: GitPanelProps) {
                   onChange={(e) => setFileName(e.target.value)}
                   className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:border-blue-500"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Path in repository (e.g., <code className="bg-gray-900 px-1 rounded">src/index.js</code>)
+                </p>
               </div>
 
               <div>
@@ -142,7 +196,7 @@ export default function GitPanel({ roomId, code, language }: GitPanelProps) {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Commit Message
+                  Commit Message *
                 </label>
                 <textarea
                   value={commitMessage}
@@ -156,10 +210,24 @@ export default function GitPanel({ roomId, code, language }: GitPanelProps) {
               <button
                 onClick={handleCommit}
                 disabled={isCommitting}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white py-2 rounded font-medium transition-colors"
+                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white py-2 rounded font-medium transition-colors flex items-center justify-center gap-2"
               >
-                {isCommitting ? 'Committing...' : 'Commit to GitHub'}
+                {isCommitting ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Committing...
+                  </>
+                ) : (
+                  'Commit to GitHub'
+                )}
               </button>
+
+              <p className="text-xs text-gray-500 text-center">
+                This will create or update the file in your repository
+              </p>
             </div>
           </div>
         </div>
