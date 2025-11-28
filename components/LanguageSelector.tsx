@@ -7,20 +7,29 @@ interface LanguageSelectorProps {
   onLanguageChange: (language: string) => void
 }
 
-const LANGUAGES = [
-  { value: 'javascript', label: 'JavaScript', icon: '🟨', color: 'text-yellow-400' },
-  { value: 'typescript', label: 'TypeScript', icon: '🔷', color: 'text-blue-400' },
-  { value: 'python', label: 'Python', icon: '🐍', color: 'text-green-400' },
-  { value: 'java', label: 'Java', icon: '☕', color: 'text-orange-400' },
-  { value: 'cpp', label: 'C++', icon: '⚙️', color: 'text-purple-400' },
-  { value: 'go', label: 'Go', icon: '🔵', color: 'text-cyan-400' },
+const languages = [
+  { id: 'javascript', name: 'JavaScript', color: 'text-yellow-400' },
+  { id: 'typescript', name: 'TypeScript', color: 'text-blue-400' },
+  { id: 'python', name: 'Python', color: 'text-blue-300' },
+  { id: 'java', name: 'Java', color: 'text-orange-400' },
+  { id: 'cpp', name: 'C++', color: 'text-purple-400' },
+  { id: 'c', name: 'C', color: 'text-purple-300' },
+  { id: 'csharp', name: 'C#', color: 'text-green-400' },
+  { id: 'go', name: 'Go', color: 'text-cyan-400' },
+  { id: 'rust', name: 'Rust', color: 'text-orange-300' },
+  { id: 'ruby', name: 'Ruby', color: 'text-red-400' },
+  { id: 'php', name: 'PHP', color: 'text-indigo-400' },
+  { id: 'swift', name: 'Swift', color: 'text-orange-400' },
+  { id: 'kotlin', name: 'Kotlin', color: 'text-purple-400' },
+  { id: 'html', name: 'HTML', color: 'text-orange-500' },
+  { id: 'css', name: 'CSS', color: 'text-blue-500' },
 ]
 
 export default function LanguageSelector({ currentLanguage, onLanguageChange }: LanguageSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const currentLang = LANGUAGES.find(lang => lang.value === currentLanguage) || LANGUAGES[0]
+  const currentLang = languages.find(lang => lang.id === currentLanguage) || languages[0]
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -33,8 +42,8 @@ export default function LanguageSelector({ currentLanguage, onLanguageChange }: 
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleLanguageSelect = (lang: typeof LANGUAGES[0]) => {
-    onLanguageChange(lang.value)
+  const handleLanguageSelect = (languageId: string) => {
+    onLanguageChange(languageId)
     setIsOpen(false)
   }
 
@@ -42,14 +51,16 @@ export default function LanguageSelector({ currentLanguage, onLanguageChange }: 
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-all border border-gray-600 hover:border-gray-500"
+        className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
       >
-        <span className="text-lg">{currentLang.icon}</span>
-        <span className={`font-medium ${currentLang.color}`}>{currentLang.label}</span>
-        <svg
-          className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+        </svg>
+        <span className={currentLang.color}>{currentLang.name}</span>
+        <svg 
+          className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
+          fill="none" 
+          stroke="currentColor" 
           viewBox="0 0 24 24"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -57,30 +68,34 @@ export default function LanguageSelector({ currentLanguage, onLanguageChange }: 
       </button>
 
       {isOpen && (
-        <div className="absolute top-full mt-2 right-0 bg-gray-800 rounded-lg shadow-xl border border-gray-700 py-2 min-w-[200px] z-50">
-          {LANGUAGES.map(lang => (
-            <button
-              key={lang.value}
-              onClick={() => handleLanguageSelect(lang)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                currentLanguage === lang.value
-                  ? 'bg-blue-600 text-white'
-                  : 'hover:bg-gray-700 text-gray-300'
-              }`}
-            >
-              <span className="text-xl">{lang.icon}</span>
-              <div className="flex-1">
-                <span className={`font-medium ${currentLanguage === lang.value ? 'text-white' : lang.color}`}>
-                  {lang.label}
-                </span>
-              </div>
-              {currentLanguage === lang.value && (
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </button>
-          ))}
+        <div className="absolute top-full mt-2 left-0 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 min-w-[200px] max-h-[400px] overflow-y-auto">
+          <div className="p-2">
+            <div className="text-xs text-gray-400 px-3 py-2 font-semibold">
+              Select Language
+            </div>
+            {languages.map((lang) => (
+              <button
+                key={lang.id}
+                onClick={() => handleLanguageSelect(lang.id)}
+                className={`w-full text-left px-3 py-2 rounded transition-colors ${
+                  currentLanguage === lang.id
+                    ? 'bg-blue-600 text-white'
+                    : 'hover:bg-gray-700 text-gray-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={lang.id === currentLanguage ? 'text-white' : lang.color}>
+                    {lang.name}
+                  </span>
+                  {currentLanguage === lang.id && (
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

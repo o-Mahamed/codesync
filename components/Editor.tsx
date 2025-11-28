@@ -13,6 +13,9 @@ import LanguageSelector from './LanguageSelector'
 import Toast from './Toast'
 import Chat from './Chat'
 import GitPanel from './GitPanel'
+import VideoChat from './VideoChat'
+import FileManager, { FileData } from './FileManager'
+import FileTabs from './FileTabs'
 
 interface EditorProps {
   roomId: string
@@ -37,8 +40,18 @@ declare global {
 }
 
 export default function Editor({ roomId, initialCode, language: initialLanguage }: EditorProps) {
-  const [code, setCode] = useState(initialCode)
-  const [language, setLanguage] = useState(initialLanguage)
+const [files, setFiles] = useState<FileData[]>([
+  {
+    id: 'file-1',
+    name: 'main.js',
+    language: 'javascript',
+    code: '// Start coding!\n'
+  }
+])
+const [activeFileId, setActiveFileId] = useState('file-1')
+
+// Helper to get active file
+const activeFile = files.find(f => f.id === activeFileId) || files[0]  const [language, setLanguage] = useState(initialLanguage)
   const [users, setUsers] = useState<User[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [currentUser, setCurrentUser] = useState<{ id: string, name: string, color: string } | null>(null)
@@ -355,8 +368,8 @@ export default function Editor({ roomId, initialCode, language: initialLanguage 
               <LanguageSelector currentLanguage={language} onLanguageChange={handleLanguageChange} />
               <CopyLinkButton roomId={roomId} />
               <GitPanel roomId={roomId} code={code} language={language} />
-
-            </div>
+              <VideoChat socket={socketRef.current} roomId={roomId} currentUser={currentUser} />
+          </div>
           </div>
 
           {/* Editor */}

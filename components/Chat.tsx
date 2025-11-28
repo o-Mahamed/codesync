@@ -27,14 +27,19 @@ export default function Chat({ socket, roomId, currentUser, isInSidebar = false 
   useEffect(() => {
     if (!socket) return
 
+    // Listen for new messages
     socket.on('chat-message', (message: Message) => {
+      console.log('Received chat message:', message)
       setMessages(prev => [...prev, message])
     })
 
+    // Get chat history
     socket.on('chat-history', (history: Message[]) => {
+      console.log('Received chat history:', history)
       setMessages(history)
     })
 
+    // Request history when component mounts
     socket.emit('request-chat-history', roomId)
 
     return () => {
@@ -48,7 +53,10 @@ export default function Chat({ socket, roomId, currentUser, isInSidebar = false 
   }, [messages])
 
   const sendMessage = () => {
-    if (!inputMessage.trim() || !socket || !currentUser) return
+    if (!inputMessage.trim() || !socket || !currentUser) {
+      console.log('Cannot send message:', { inputMessage, socket: !!socket, currentUser })
+      return
+    }
 
     const message: Message = {
       id: `${Date.now()}-${Math.random()}`,
@@ -59,6 +67,7 @@ export default function Chat({ socket, roomId, currentUser, isInSidebar = false 
       color: currentUser.color
     }
 
+    console.log('Sending message:', message)
     socket.emit('chat-message', { roomId, message })
     setInputMessage('')
   }

@@ -29,120 +29,329 @@ app.prepare().then(() => {
     }
   })
 
-  const rooms = new Map<string, Set<string>>()
-  const chatHistory = new Map<string, any[]>()
+  // Store room data
+  interface User {
+    userId: string
+    username: string
+    color: string
+    cursor?: {
+      lineNumber: number
+      column: number
+    }
+  }
 
-  console.log('🚀 Socket.io server initialized')
+  interface Message {
+    id: string
+    userId: string
+    username: string
+    message: string
+    timestamp: Date
+    color: string
+  }
+
+  interface FileData {
+    id: string
+    name: string
+    language: string
+    code: string
+  }
+
+  const rooms = new Map<string, {
+    files: Map<string, FileData>
+    activeFileId: string
+    users: Map<string, User>
+    messages: Message[]
+  }>()
 
   io.on('connection', (socket) => {
-    console.log('✅ Client connected:', socket.id)
+    console.log('User connected:', socket.id)
 
-    socket.on('join-room', (roomId: string, username: string) => {
-      console.log(`👤 User "${username}" (${socket.id}) joining room "${roomId}"`)
-      
-      socket.join(roomId)
-      
-      if (!rooms.has(roomId)) {
-        rooms.set(roomId, new Set())
-      }
-      rooms.get(roomId)?.add(socket.id)
+    socket.on('join-room', (roomId, username) => {
+      try {
+        // Validate input
+        if (!roomId || !username) {
+          console.error('Invalid join-room data:', { roomId, username })
+          socket.emit('error', { message: 'Invalid room or username' })
+          return
+        }
 
-      socket.data.roomId = roomId
-      socket.data.username = username
+        // Generate random color for user
+        const color = '#' + Math.floor(Math.random()*16777215).toString(16)
+        
+        const user = {
+          userId: socket.id,
+          username: username,
+          color: color
+        }
 
-      socket.to(roomId).emit('user-joined', {
-        userId: socket.id,
-        username: socket.data.username
-      })
+        socket.join(roomId)
 
-      const roomUsers = Array.from(rooms.get(roomId) || [])
-        .map(id => {
-          const userSocket = io.sockets.sockets.get(id)
-          return {
-            userId: id,
-            username: userSocket?.data.username || 'Anonymous'
+        if (!rooms.has(roomId)) {
+          // Create default file
+          const defaultFile: FileData = {
+            id: 'file-1',
+            name: 'main.js',
+            language: 'javascript',
+            code: '// Start coding!\n'
           }
+          
+          rooms.set(roomId, {
+            files: new Map([[defaultFile.id, defaultFile]]),
+            activeFileId: defaultFile.id,
+            users: new Map(),
+            messages: []
+          })
+        }
+
+        const room = rooms.get(roomId)!
+        room.users.set(socket.id, user)
+
+        // Send current state to new user
+        const filesArray = Array.from(room.files.values())
+        socket.emit('room-state', {
+          files: filesArray,
+          activeFileId: room.activeFileId
         })
-      
-      socket.emit('room-users', roomUsers)
-      console.log(`✨ Total users in room "${roomId}":`, rooms.get(roomId)?.size)
-    })
 
-    socket.on('code-change', (data: { roomId: string, code: string, userId: string }) => {
-      socket.to(data.roomId).emit('code-update', {
-        code: data.code,
-        userId: data.userId
-      })
-    })
+        // Send user list to everyone
+        const userList = Array.from(room.users.values())
+        io.to(roomId).emit('user-list', userList)
 
-    socket.on('language-change', (data: { roomId: string, language: string, userId: string }) => {
-      socket.to(data.roomId).emit('language-change', {
-        language: data.language,
-        userId: data.userId
-      })
-    })
+        // Notify others
+        socket.to(roomId).emit('user-joined', {
+          userId: socket.id,
+          username: user.username,
+          color: user.color
+        })
 
-    socket.on('cursor-change', (data: { roomId: string, position: any, userId: string }) => {
-      socket.to(data.roomId).emit('cursor-update', {
-        position: data.position,
-        userId: data.userId,
-        username: socket.data.username
-      })
-    })
-
-    // Chat system
-    socket.on('chat-message', (data: { roomId: string, message: any }) => {
-      console.log(`💬 Chat message in room ${data.roomId}:`, data.message.message)
-      
-      // Store in chat history
-      if (!chatHistory.has(data.roomId)) {
-        chatHistory.set(data.roomId, [])
+        console.log(`User ${username} joined room ${roomId}`)
+      } catch (error) {
+        console.error('Error in join-room:', error)
       }
-      chatHistory.get(data.roomId)?.push(data.message)
-      
-      // Broadcast to all users in room including sender
-      io.to(data.roomId).emit('chat-message', data.message)
     })
 
-    socket.on('request-chat-history', (roomId: string) => {
-      const history = chatHistory.get(roomId) || []
-      socket.emit('chat-history', history)
+    socket.on('code-change', ({ roomId, fileId, code, userId }) => {
+      try {
+        const room = rooms.get(roomId)
+        if (room && fileId) {
+          const file = room.files.get(fileId)
+          if (file) {
+            file.code = code
+            socket.to(roomId).emit('code-update', { fileId, code, userId })
+          }
+        }
+      } catch (error) {
+        console.error('Error in code-change:', error)
+      }
+    })
+
+    socket.on('file-create', ({ roomId, name, language }) => {
+      try {
+        const room = rooms.get(roomId)
+        if (room) {
+          const newFile: FileData = {
+            id: `file-${Date.now()}`,
+            name,
+            language,
+            code: ''
+          }
+          room.files.set(newFile.id, newFile)
+          io.to(roomId).emit('file-created', newFile)
+        }
+      } catch (error) {
+        console.error('Error in file-create:', error)
+      }
+    })
+
+    socket.on('file-rename', ({ roomId, fileId, newName }) => {
+      try {
+        const room = rooms.get(roomId)
+        if (room) {
+          const file = room.files.get(fileId)
+          if (file) {
+            file.name = newName
+            io.to(roomId).emit('file-renamed', { fileId, newName })
+          }
+        }
+      } catch (error) {
+        console.error('Error in file-rename:', error)
+      }
+    })
+
+    socket.on('file-delete', ({ roomId, fileId }) => {
+      try {
+        const room = rooms.get(roomId)
+        if (room && room.files.size > 1) {
+          room.files.delete(fileId)
+          
+          // If deleted file was active, switch to first available file
+          if (room.activeFileId === fileId) {
+            room.activeFileId = Array.from(room.files.keys())[0]
+          }
+          
+          io.to(roomId).emit('file-deleted', { fileId, newActiveFileId: room.activeFileId })
+        }
+      } catch (error) {
+        console.error('Error in file-delete:', error)
+      }
+    })
+
+    socket.on('file-select', ({ roomId, fileId, userId }) => {
+      try {
+        const room = rooms.get(roomId)
+        if (room && room.files.has(fileId)) {
+          room.activeFileId = fileId
+          socket.to(roomId).emit('file-selected', { fileId, userId })
+        }
+      } catch (error) {
+        console.error('Error in file-select:', error)
+      }
+    })
+
+    socket.on('cursor-change', ({ roomId, cursor, userId }) => {
+      try {
+        const room = rooms.get(roomId)
+        if (room) {
+          const user = room.users.get(socket.id)
+          if (user) {
+            user.cursor = cursor
+            socket.to(roomId).emit('cursor-update', {
+              userId,
+              cursor
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Error in cursor-change:', error)
+      }
+    })
+
+    socket.on('language-change', ({ roomId, fileId, language }) => {
+      try {
+        const room = rooms.get(roomId)
+        if (room && fileId) {
+          const file = room.files.get(fileId)
+          if (file) {
+            file.language = language
+            io.to(roomId).emit('language-update', { fileId, language })
+          }
+        }
+      } catch (error) {
+        console.error('Error in language-change:', error)
+      }
+    })
+
+    socket.on('chat-message', ({ roomId, message }) => {
+      try {
+        const room = rooms.get(roomId)
+        if (room && message) {
+          room.messages.push(message)
+          io.to(roomId).emit('chat-message', message)
+        }
+      } catch (error) {
+        console.error('Error in chat-message:', error)
+      }
+    })
+
+    socket.on('request-chat-history', (roomId) => {
+      try {
+        const room = rooms.get(roomId)
+        if (room) {
+          socket.emit('chat-history', room.messages)
+        } else {
+          socket.emit('chat-history', [])
+        }
+      } catch (error) {
+        console.error('Error in request-chat-history:', error)
+        socket.emit('chat-history', [])
+      }
+    })
+
+    // WebRTC signaling
+    socket.on('webrtc-ready', ({ roomId, userId, username }) => {
+      try {
+        socket.to(roomId).emit('webrtc-user-ready', { userId, username })
+      } catch (error) {
+        console.error('Error in webrtc-ready:', error)
+      }
+    })
+
+    socket.on('webrtc-offer', ({ roomId, to, offer, username }) => {
+      try {
+        io.to(to).emit('webrtc-offer', {
+          from: socket.id,
+          offer,
+          username
+        })
+      } catch (error) {
+        console.error('Error in webrtc-offer:', error)
+      }
+    })
+
+    socket.on('webrtc-answer', ({ roomId, to, answer }) => {
+      try {
+        io.to(to).emit('webrtc-answer', {
+          from: socket.id,
+          answer
+        })
+      } catch (error) {
+        console.error('Error in webrtc-answer:', error)
+      }
+    })
+
+    socket.on('webrtc-ice-candidate', ({ roomId, to, candidate }) => {
+      try {
+        io.to(to).emit('webrtc-ice-candidate', {
+          from: socket.id,
+          candidate
+        })
+      } catch (error) {
+        console.error('Error in webrtc-ice-candidate:', error)
+      }
     })
 
     socket.on('disconnect', () => {
-      const roomId = socket.data.roomId
-      
-      console.log(`❌ Client disconnected: ${socket.id}`)
-      
-      if (roomId && rooms.has(roomId)) {
-        rooms.get(roomId)?.delete(socket.id)
-        
-        if (rooms.get(roomId)?.size === 0) {
-          rooms.delete(roomId)
-          // Clean up chat history for empty rooms after 1 hour
-          setTimeout(() => {
-            if (!rooms.has(roomId)) {
-              chatHistory.delete(roomId)
-              console.log(`🗑️  Cleaned up chat history for room ${roomId}`)
-            }
-          }, 3600000)
-        }
+      console.log('User disconnected:', socket.id)
 
-        socket.to(roomId).emit('user-left', {
-          userId: socket.id,
-          username: socket.data.username
+      try {
+        // Remove user from all rooms
+        rooms.forEach((room, roomId) => {
+          if (room.users.has(socket.id)) {
+            const user = room.users.get(socket.id)
+            room.users.delete(socket.id)
+
+            // Send updated user list
+            const userList = Array.from(room.users.values())
+            io.to(roomId).emit('user-list', userList)
+
+            // Notify others about user leaving (only if we have user data)
+            if (user && user.username) {
+              io.to(roomId).emit('user-left', {
+                userId: socket.id,
+                username: user.username
+              })
+              console.log(`User ${user.username} left room ${roomId}`)
+            }
+
+            // Clean up empty rooms
+            if (room.users.size === 0) {
+              rooms.delete(roomId)
+              console.log(`Room ${roomId} deleted (empty)`)
+            }
+          }
         })
+      } catch (error) {
+        console.error('Error in disconnect:', error)
       }
     })
   })
 
   httpServer
     .once('error', (err) => {
-      console.error('❌ Server error:', err)
+      console.error(err)
       process.exit(1)
     })
     .listen(port, () => {
       console.log(`> Ready on http://${hostname}:${port}`)
-      console.log(`> Socket.io server running`)
     })
 })
