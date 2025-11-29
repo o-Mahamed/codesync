@@ -1,27 +1,18 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import MonacoEditor from '@monaco-editor/react'
-import { io, Socket } from 'socket.io-client'
-import type * as Monaco from 'monaco-editor'
-import { getColorForUser } from '@/lib/colors'
-import OutputPanel from './OutputPanel'
-import UsernameModal from './UsernameModal'
-import Sidebar from './Sidebar'
-import CopyLinkButton from './CopyLinkButton'
+import { useEffect, useRef, useState } from 'react'
+import { Editor } from '@monaco-editor/react'
+import { Socket, io } from 'socket.io-client'
 import LanguageSelector from './LanguageSelector'
-import Toast from './Toast'
-import Chat from './Chat'
+import CopyLinkButton from './CopyLinkButton'
 import GitPanel from './GitPanel'
 import VideoChat from './VideoChat'
+import Sidebar from './Sidebar'
+import UsernameModal from './UsernameModal'
 import FileManager, { FileData } from './FileManager'
 import FileTabs from './FileTabs'
-
-interface EditorProps {
-  roomId: string
-  initialCode: string
-  language: string
-}
+import OutputPanel from './OutputPanel'
+import Toast from './Toast'
 
 interface User {
   userId: string
@@ -33,384 +24,358 @@ interface User {
   }
 }
 
-declare global {
-  interface Window {
-    monaco: typeof Monaco
-  }
+interface CollaborativeEditorProps {
+  roomId: string
 }
 
-export default function Editor({ roomId, initialCode, language: initialLanguage }: EditorProps) {
-const [files, setFiles] = useState<FileData[]>([
-  {
-    id: 'file-1',
-    name: 'main.js',
-    language: 'javascript',
-    code: '// Start coding!\n'
-  }
-])
-const [activeFileId, setActiveFileId] = useState('file-1')
-
-// Helper to get active file
-const activeFile = files.find(f => f.id === activeFileId) || files[0]  const [language, setLanguage] = useState(initialLanguage)
-  const [users, setUsers] = useState<User[]>([])
-  const [isConnected, setIsConnected] = useState(false)
-  const [currentUser, setCurrentUser] = useState<{ id: string, name: string, color: string } | null>(null)
-  const [showUsernameModal, setShowUsernameModal] = useState(true)
-  const [output, setOutput] = useState('')
-  const [isExecuting, setIsExecuting] = useState(false)
-  const [executionError, setExecutionError] = useState<string | null>(null)
-  const [toast, setToast] = useState<{ message: string, type: 'info' | 'success' | 'error' } | null>(null)
-  const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null)
-  const monacoRef = useRef<typeof Monaco | null>(null)
-  const socketRef = useRef<Socket | null>(null)
-  const isRemoteChange = useRef(false)
-  const decorationsRef = useRef<string[]>([])
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const [executionTime, setExecutionTime] = useState<number | undefined>(undefined)
-
-  const showToast = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 3000)
-  }
-
-  const handleUsernameSubmit = (username: string) => {
-    setShowUsernameModal(false)
-    initializeSocket(username)
-  }
-
-  const initializeSocket = (username: string) => {
-    if (socketRef.current) {
-      socketRef.current.disconnect()
+export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps) {
+  // File management
+  const [files, setFiles] = useState<FileData[]>([
+    {
+      id: 'file-1',
+      name: 'main.js',
+      language: 'javascript',
+      code: '// Start coding!\n'
     }
+  ])
+  const [activeFileId, setActiveFileId] = useState('file-1')
+  
+  // Get active file
+  const activeFile = files.find(f => f.id === activeFileId) || files[0]
 
-    const socketInstance = io('http://localhost:3000', {
-      transports: ['websocket'],
-      forceNew: true
-    })
+  // User and socket management
+  const [currentUser, setCurrentUser] = useState<{ id: string, name: string, color: string } | null>(null)
+  const [users, setUsers] = useState<User[]>([])
+  const socketRef = useRef<Socket | null>(null)
+  const editorRef = useRef<any>(null)
 
-    socketRef.current = socketInstance
+  // Toast notifications
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
 
-    socketInstance.on('connect', () => {
-      console.log('Connected to Socket.io server with ID:', socketInstance.id)
-      setIsConnected(true)
-      
-      const color = getColorForUser(socketInstance.id)
-      setCurrentUser({ id: socketInstance.id, name: username, color })
-      
-      socketInstance.emit('join-room', roomId, username)
-    })
+  // Output panel
+  const [output, setOutput] = useState('')
+  const [isRunning, setIsRunning] = useState(false)
 
-    socketInstance.on('disconnect', () => {
-      console.log('Disconnected from Socket.io server')
-      setIsConnected(false)
-      showToast('Disconnected from server', 'error')
-    })
-
-    socketInstance.on('code-update', (data: { code: string, userId: string }) => {
-      isRemoteChange.current = true
-      setCode(data.code)
-    })
-
-    socketInstance.on('language-change', (data: { language: string, userId: string }) => {
-      setLanguage(data.language)
-      showToast(`Language changed to ${data.language}`, 'info')
-    })
-
-    socketInstance.on('room-users', (roomUsers: Array<{ userId: string, username: string }>) => {
-      setUsers(roomUsers.map(u => ({
-        ...u,
-        color: getColorForUser(u.userId)
-      })))
-    })
-
-    socketInstance.on('user-joined', (user: { userId: string, username: string }) => {
-      setUsers(prev => {
-        if (prev.some(u => u.userId === user.userId)) {
-          return prev
-        }
-        return [...prev, { ...user, color: getColorForUser(user.userId) }]
-      })
-      showToast(`${user.username} joined the room`, 'success')
-    })
-
-    socketInstance.on('user-left', (user: { userId: string, username: string }) => {
-      setUsers(prev => prev.filter(u => u.userId !== user.userId))
-      showToast(`${user.username} left the room`, 'info')
-    })
-
-    socketInstance.on('cursor-update', (data: { position: { lineNumber: number, column: number }, userId: string, username: string }) => {
-      setUsers(prev => prev.map(u => 
-        u.userId === data.userId 
-          ? { ...u, cursor: data.position }
-          : u
-      ))
-    })
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type })
   }
 
+  // Initialize socket connection
   useEffect(() => {
+    const socket = io('http://localhost:3000')
+    socketRef.current = socket
+
+    socket.on('connect', () => {
+      console.log('Connected to socket server')
+    })
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from socket server')
+    })
+
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect()
-        socketRef.current = null
-      }
+      socket.disconnect()
     }
   }, [])
 
+  // Handle room state and events
   useEffect(() => {
-    if (!editorRef.current || !monacoRef.current) return
+    const socket = socketRef.current
+    if (!socket || !currentUser) return
 
-    const editor = editorRef.current
-    const monaco = monacoRef.current
-    const newDecorations: Monaco.editor.IModelDeltaDecoration[] = []
+    // Join room
+    socket.emit('join-room', roomId, currentUser.name)
 
-    users.forEach(user => {
-      if (user.cursor && user.userId !== socketRef.current?.id) {
-        newDecorations.push({
-          range: new monaco.Range(
-            user.cursor.lineNumber,
-            user.cursor.column,
-            user.cursor.lineNumber,
-            user.cursor.column
-          ),
-          options: {
-            className: 'remote-cursor',
-            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-          }
-        })
-
-        newDecorations.push({
-          range: new monaco.Range(
-            user.cursor.lineNumber,
-            1,
-            user.cursor.lineNumber,
-            1
-          ),
-          options: {
-            isWholeLine: true,
-            className: 'remote-cursor-line',
-          }
-        })
+    // Listen for room state
+    socket.on('room-state', ({ files: serverFiles, activeFileId: serverActiveFileId }) => {
+      if (serverFiles && serverFiles.length > 0) {
+        setFiles(serverFiles)
+        setActiveFileId(serverActiveFileId)
       }
     })
 
-    decorationsRef.current = editor.deltaDecorations(decorationsRef.current, newDecorations)
-  }, [users])
+    // Listen for user list updates
+    socket.on('user-list', (userList: User[]) => {
+      setUsers(userList)
+    })
 
-  // Auto-save code to database
-  useEffect(() => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
+    // Listen for user joined
+    socket.on('user-joined', ({ username }) => {
+      showToast(`${username} joined the room`, 'success')
+    })
 
-    saveTimeoutRef.current = setTimeout(async () => {
-      try {
-        await fetch(`/api/rooms/${roomId}/save`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, language })
-        })
-      } catch (error) {
-        console.error('Auto-save failed:', error)
-      }
-    }, 2000) // Save 2 seconds after last change
+    // Listen for user left
+    socket.on('user-left', ({ username }) => {
+      showToast(`${username} left the room`, 'info')
+    })
+
+    // Listen for code updates
+    socket.on('code-update', ({ fileId, code: newCode }) => {
+      setFiles(prev => prev.map(f => 
+        f.id === fileId ? { ...f, code: newCode } : f
+      ))
+    })
+
+    // Listen for cursor updates
+    socket.on('cursor-update', ({ userId, cursor }) => {
+      setUsers(prev => prev.map(user =>
+        user.userId === userId ? { ...user, cursor } : user
+      ))
+    })
+
+    // Listen for language updates
+    socket.on('language-update', ({ fileId, language }) => {
+      setFiles(prev => prev.map(f => 
+        f.id === fileId ? { ...f, language } : f
+      ))
+    })
+
+    // File management events
+    socket.on('file-created', (newFile: FileData) => {
+      setFiles(prev => [...prev, newFile])
+      setActiveFileId(newFile.id)
+      showToast(`File "${newFile.name}" created`, 'success')
+    })
+
+    socket.on('file-renamed', ({ fileId, newName }) => {
+      setFiles(prev => prev.map(f => 
+        f.id === fileId ? { ...f, name: newName } : f
+      ))
+      showToast(`File renamed to "${newName}"`, 'success')
+    })
+
+    socket.on('file-deleted', ({ fileId, newActiveFileId }) => {
+      setFiles(prev => prev.filter(f => f.id !== fileId))
+      setActiveFileId(newActiveFileId)
+      showToast('File deleted', 'info')
+    })
+
+    socket.on('file-selected', ({ fileId }) => {
+      setActiveFileId(fileId)
+    })
 
     return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
+      socket.off('room-state')
+      socket.off('user-list')
+      socket.off('user-joined')
+      socket.off('user-left')
+      socket.off('code-update')
+      socket.off('cursor-update')
+      socket.off('language-update')
+      socket.off('file-created')
+      socket.off('file-renamed')
+      socket.off('file-deleted')
+      socket.off('file-selected')
     }
-  }, [code, language, roomId])
+  }, [currentUser, roomId])
 
-  const handleEditorChange = (value: string | undefined) => {
+  const handleUsernameSubmit = (username: string) => {
+    const color = '#' + Math.floor(Math.random() * 16777215).toString(16)
+    const user = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: username,
+      color
+    }
+    setCurrentUser(user)
+  }
+
+  const handleCodeChange = (value: string | undefined) => {
     if (value === undefined) return
 
-    if (isRemoteChange.current) {
-      isRemoteChange.current = false
-      return
-    }
+    // Update local state
+    setFiles(prev => prev.map(f => 
+      f.id === activeFileId ? { ...f, code: value } : f
+    ))
 
-    setCode(value)
-
-    if (socketRef.current && isConnected) {
-      socketRef.current.emit('code-change', {
-        roomId,
-        code: value,
-        userId: socketRef.current.id
-      })
-    }
+    // Emit to socket
+    socketRef.current?.emit('code-change', {
+      roomId,
+      fileId: activeFileId,
+      code: value,
+      userId: currentUser?.id
+    })
   }
 
-  const handleLanguageChange = (newLanguage: string) => {
-    setLanguage(newLanguage)
+  const handleLanguageChange = (language: string) => {
+    // Update local state
+    setFiles(prev => prev.map(f => 
+      f.id === activeFileId ? { ...f, language } : f
+    ))
 
-    if (socketRef.current && isConnected) {
-      socketRef.current.emit('language-change', {
-        roomId,
-        language: newLanguage,
-        userId: socketRef.current.id
-      })
-    }
-
-    showToast(`Language changed to ${newLanguage}`, 'success')
+    // Emit to socket
+    socketRef.current?.emit('language-change', {
+      roomId,
+      fileId: activeFileId,
+      language
+    })
   }
 
-  const handleEditorDidMount = (editor: Monaco.editor.IStandaloneCodeEditor, monaco: typeof Monaco) => {
+  const handleEditorMount = (editor: any) => {
     editorRef.current = editor
-    monacoRef.current = monaco
 
-    editor.onDidChangeCursorPosition((e) => {
-      if (socketRef.current && isConnected) {
-        socketRef.current.emit('cursor-change', {
-          roomId,
-          position: {
-            lineNumber: e.position.lineNumber,
-            column: e.position.column
-          },
-          userId: socketRef.current.id
-        })
-      }
-    })
-
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-      handleExecuteCode()
+    // Listen for cursor position changes
+    editor.onDidChangeCursorPosition((e: any) => {
+      const position = e.position
+      socketRef.current?.emit('cursor-change', {
+        roomId,
+        cursor: {
+          lineNumber: position.lineNumber,
+          column: position.column
+        },
+        userId: currentUser?.id
+      })
     })
   }
 
-  const handleExecuteCode = async () => {
-    setIsExecuting(true)
-    setExecutionError(null)
-    setOutput('Running code...\n\n')
+  // File management handlers
+  const handleFileCreate = (name: string, language: string) => {
+    socketRef.current?.emit('file-create', { roomId, name, language })
+  }
+
+  const handleFileRename = (fileId: string, newName: string) => {
+    socketRef.current?.emit('file-rename', { roomId, fileId, newName })
+  }
+
+  const handleFileDelete = (fileId: string) => {
+    if (files.length > 1) {
+      socketRef.current?.emit('file-delete', { roomId, fileId })
+    } else {
+      showToast('Cannot delete the last file', 'error')
+    }
+  }
+
+  const handleFileSelect = (fileId: string) => {
+    setActiveFileId(fileId)
+    socketRef.current?.emit('file-select', { roomId, fileId, userId: currentUser?.id })
+  }
+
+  // Code execution
+  const handleRunCode = async () => {
+    setIsRunning(true)
+    setOutput('Running...')
 
     try {
       const response = await fetch('/api/execute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, language })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code: activeFile.code,
+          language: activeFile.language,
+        }),
       })
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
 
       const data = await response.json()
 
-      if (data.error) {
-        setExecutionError(data.error)
+      if (response.ok) {
+        setOutput(data.output || 'Program executed successfully with no output.')
+      } else {
+        setOutput(`Error: ${data.error || 'Unknown error occurred'}`)
       }
-
-      setOutput(data.output || '(No output)')
-      setExecutionTime(data.executionTime)
-
-      setOutput(data.output || '(No output)')
     } catch (error) {
-      console.error('Execution error:', error)
-      setExecutionError('Failed to execute code')
-      setOutput(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.error('Code execution error:', error)
+      setOutput(`Error: Failed to execute code. Make sure the /api/execute endpoint exists.`)
     } finally {
-      setIsExecuting(false)
+      setIsRunning(false)
     }
   }
 
   return (
-    <>
-      {showUsernameModal && <UsernameModal onSubmit={handleUsernameSubmit} />}
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      
-      <div className="h-full flex">
+    <div className="h-screen flex flex-col bg-gray-900">
+      {/* Username Modal */}
+      {!currentUser && <UsernameModal onSubmit={handleUsernameSubmit} />}
+
+      {/* Toast Notifications */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Top bar */}
+      <div className="bg-gray-900 px-4 py-2 flex items-center justify-between border-b border-gray-700">
+        <div className="flex items-center gap-3">
+          <h1 className="text-white font-semibold">CodeSync</h1>
+          <span className="text-gray-400 text-sm">Room: {roomId}</span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <LanguageSelector
+            currentLanguage={activeFile.language}
+            onLanguageChange={handleLanguageChange}
+          />
+          <CopyLinkButton roomId={roomId} />
+          <GitPanel roomId={roomId} code={activeFile.code} language={activeFile.language} />
+          <VideoChat socket={socketRef.current} roomId={roomId} currentUser={currentUser} />
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* File Manager Sidebar */}
+        <FileManager
+          files={files}
+          activeFileId={activeFileId}
+          onFileSelect={handleFileSelect}
+          onFileCreate={handleFileCreate}
+          onFileRename={handleFileRename}
+          onFileDelete={handleFileDelete}
+        />
+
+        {/* Main editor area */}
         <div className="flex-1 flex flex-col">
-          <style jsx global>{`
-            .remote-cursor {
-              background-color: transparent;
-              border-left: 2px solid;
-              position: relative;
-            }
+          {/* File Tabs */}
+          <FileTabs
+            files={files}
+            activeFileId={activeFileId}
+            onFileSelect={handleFileSelect}
+            onFileClose={handleFileDelete}
+          />
 
-            .remote-cursor-line {
-              background-color: rgba(78, 205, 196, 0.1);
-            }
-
-            @keyframes slide-up {
-              from {
-                transform: translateY(100%);
-                opacity: 0;
-              }
-              to {
-                transform: translateY(0);
-                opacity: 1;
-              }
-            }
-
-            .animate-slide-up {
-              animation: slide-up 0.3s ease-out;
-            }
-          `}</style>
-
-          {/* Top bar */}
-          <div className="bg-gray-800 px-4 py-2 flex items-center justify-between border-b border-gray-700">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span className="text-sm text-gray-300">
-                  {isConnected ? 'Connected' : 'Disconnected'}
-                </span>
-              </div>
-              {currentUser && (
-                <span className="text-sm text-gray-400">
-                  <span style={{ color: currentUser.color }} className="font-semibold">{currentUser.name}</span>
-                </span>
-              )}
-              <div className="h-4 w-px bg-gray-600"></div>
-              <span className="text-sm text-gray-400">
-                {users.length} user{users.length !== 1 ? 's' : ''} online
-              </span>
+          {/* Editor and Output */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Editor */}
+            <div className="flex-1 overflow-hidden">
+              <Editor
+                height="100%"
+                language={activeFile.language}
+                value={activeFile.code}
+                onChange={handleCodeChange}
+                onMount={handleEditorMount}
+                theme="vs-dark"
+                options={{
+                  minimap: { enabled: true },
+                  fontSize: 14,
+                  lineNumbers: 'on',
+                  roundedSelection: false,
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                  tabSize: 2,
+                }}
+              />
             </div>
-            <div className="flex items-center gap-3">
-              <LanguageSelector currentLanguage={language} onLanguageChange={handleLanguageChange} />
-              <CopyLinkButton roomId={roomId} />
-              <GitPanel roomId={roomId} code={code} language={language} />
-              <VideoChat socket={socketRef.current} roomId={roomId} currentUser={currentUser} />
-          </div>
-          </div>
 
-          {/* Editor */}
-          <div className="flex-1 overflow-hidden">
-            <MonacoEditor
-              height="100%"
-              language={language}
-              theme="vs-dark"
-              value={code}
-              onChange={handleEditorChange}
-              onMount={handleEditorDidMount}
-              options={{
-                fontSize: 14,
-                minimap: { enabled: true },
-                automaticLayout: true,
-                tabSize: 2,
-                wordWrap: 'on',
-                scrollBeyondLastLine: false,
-              }}
+            {/* Output Panel */}
+            <OutputPanel
+              output={output}
+              isRunning={isRunning}
+              onRun={handleRunCode}
+              onClear={() => setOutput('')}
             />
           </div>
-
-          {/* Output Panel */}
-          <OutputPanel
-            onExecute={handleExecuteCode}
-            output={output}
-            isExecuting={isExecuting}
-            error={executionError}
-            executionTime={executionTime}
-/>
         </div>
 
         {/* Sidebar with Users and Chat */}
-        <Sidebar 
-          users={users} 
+        <Sidebar
+          users={users}
           currentUserId={currentUser?.id || null}
           socket={socketRef.current}
           roomId={roomId}
           currentUser={currentUser}
-/>
+        />
       </div>
-    </>
+    </div>
   )
 }

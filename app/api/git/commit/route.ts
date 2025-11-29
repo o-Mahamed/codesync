@@ -1,195 +1,137 @@
 import { NextResponse } from 'next/server'
 
+// Language mappings for Piston API
+const languageMap: { [key: string]: { language: string, version: string } } = {
+  'javascript': { language: 'javascript', version: '18.15.0' },
+  'python': { language: 'python', version: '3.10.0' },
+  'java': { language: 'java', version: '15.0.2' },
+  'cpp': { language: 'c++', version: '10.2.0' },
+  'c': { language: 'c', version: '10.2.0' },
+  'csharp': { language: 'csharp', version: '6.12.0' },
+  'go': { language: 'go', version: '1.16.2' },
+  'rust': { language: 'rust', version: '1.68.2' },
+  'ruby': { language: 'ruby', version: '3.0.1' },
+  'php': { language: 'php', version: '8.2.3' },
+  'swift': { language: 'swift', version: '5.3.3' },
+  'kotlin': { language: 'kotlin', version: '1.8.20' },
+  'typescript': { language: 'typescript', version: '5.0.3' },
+}
+
 export async function POST(request: Request) {
   try {
-    const { token, owner, repo, branch, fileName, code, commitMessage } = await request.json()
+    const { code, language } = await request.json()
 
-    if (!token || !owner || !repo || !fileName || !code || !commitMessage) {
+    console.log('=== CODE EXECUTION REQUEST ===')
+    console.log('Language:', language)
+    console.log('Code length:', code?.length)
+    console.log('Using Piston API:', languageMap[language.toLowerCase()] ? 'YES' : 'NO')
+
+    if (!code || !language) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Code and language are required' },
         { status: 400 }
       )
     }
 
-    // Step 1: Get the current commit SHA of the branch
-    const refResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'User-Agent': 'CodeSync-App'
-        }
-      }
-    )
-
-    if (!refResponse.ok) {
-      const error = await refResponse.json()
+    // Check if language is supported
+    const pistonLang = languageMap[language.toLowerCase()]
+    
+    if (!pistonLang) {
+      console.log('Language not supported:', language)
       return NextResponse.json(
-        { error: `Failed to get branch reference: ${error.message}` },
-        { status: refResponse.status }
+        { error: `Language "${language}" is not supported yet` },
+        { status: 400 }
       )
     }
 
-    const refData = await refResponse.json()
-    const currentCommitSha = refData.object.sha
+    console.log('Calling Piston API with:', pistonLang)
 
-    // Step 2: Get the current commit to get the tree SHA
-    const commitResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/git/commits/${currentCommitSha}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'User-Agent': 'CodeSync-App'
-        }
-      }
-    )
-
-    if (!commitResponse.ok) {
-      const error = await commitResponse.json()
-      return NextResponse.json(
-        { error: `Failed to get commit: ${error.message}` },
-        { status: commitResponse.status }
-      )
-    }
-
-    const commitData = await commitResponse.json()
-    const baseTreeSha = commitData.tree.sha
-
-    // Step 3: Create a blob with the file content
-    const blobResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/git/blobs`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'CodeSync-App'
-        },
-        body: JSON.stringify({
-          content: code,
-          encoding: 'utf-8'
-        })
-      }
-    )
-
-    if (!blobResponse.ok) {
-      const error = await blobResponse.json()
-      return NextResponse.json(
-        { error: `Failed to create blob: ${error.message}` },
-        { status: blobResponse.status }
-      )
-    }
-
-    const blobData = await blobResponse.json()
-    const blobSha = blobData.sha
-
-    // Step 4: Create a new tree with the file
-    const treeResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/git/trees`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'CodeSync-App'
-        },
-        body: JSON.stringify({
-          base_tree: baseTreeSha,
-          tree: [
-            {
-              path: fileName,
-              mode: '100644',
-              type: 'blob',
-              sha: blobSha
-            }
-          ]
-        })
-      }
-    )
-
-    if (!treeResponse.ok) {
-      const error = await treeResponse.json()
-      return NextResponse.json(
-        { error: `Failed to create tree: ${error.message}` },
-        { status: treeResponse.status }
-      )
-    }
-
-    const treeData = await treeResponse.json()
-    const newTreeSha = treeData.sha
-
-    // Step 5: Create a new commit
-    const newCommitResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/git/commits`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'CodeSync-App'
-        },
-        body: JSON.stringify({
-          message: commitMessage,
-          tree: newTreeSha,
-          parents: [currentCommitSha]
-        })
-      }
-    )
-
-    if (!newCommitResponse.ok) {
-      const error = await newCommitResponse.json()
-      return NextResponse.json(
-        { error: `Failed to create commit: ${error.message}` },
-        { status: newCommitResponse.status }
-      )
-    }
-
-    const newCommitData = await newCommitResponse.json()
-    const newCommitSha = newCommitData.sha
-
-    // Step 6: Update the branch reference
-    const updateRefResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,
-      {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'CodeSync-App'
-        },
-        body: JSON.stringify({
-          sha: newCommitSha,
-          force: false
-        })
-      }
-    )
-
-    if (!updateRefResponse.ok) {
-      const error = await updateRefResponse.json()
-      return NextResponse.json(
-        { error: `Failed to update reference: ${error.message}` },
-        { status: updateRefResponse.status }
-      )
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Successfully committed to GitHub!',
-      commitSha: newCommitSha,
-      commitUrl: `https://github.com/${owner}/${repo}/commit/${newCommitSha}`
+    // Use Piston API for code execution
+    const pistonResponse = await fetch('https://emkc.org/api/v2/piston/execute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        language: pistonLang.language,
+        version: pistonLang.version,
+        files: [
+          {
+            name: `main.${getFileExtension(language)}`,
+            content: code,
+          },
+        ],
+        stdin: '',
+        args: [],
+        compile_timeout: 10000,
+        run_timeout: 3000,
+        compile_memory_limit: -1,
+        run_memory_limit: -1,
+      }),
     })
 
-  } catch (error) {
-    console.error('GitHub API error:', error)
+    console.log('Piston API response status:', pistonResponse.status)
+
+    if (!pistonResponse.ok) {
+      console.error('Piston API failed:', pistonResponse.statusText)
+      return NextResponse.json(
+        { error: 'Failed to execute code on Piston API' },
+        { status: 500 }
+      )
+    }
+
+    const result = await pistonResponse.json()
+    console.log('Piston result:', result)
+
+    // Format the output
+    let output = ''
+    
+    if (result.compile && result.compile.output) {
+      output += '=== Compilation Output ===\n' + result.compile.output + '\n\n'
+    }
+
+    if (result.run) {
+      if (result.run.stdout) {
+        output += result.run.stdout
+      }
+      if (result.run.stderr) {
+        output += (output ? '\n' : '') + '=== Errors ===\n' + result.run.stderr
+      }
+      if (result.run.code !== 0 && result.run.code !== null) {
+        output += (output ? '\n' : '') + `\nExit code: ${result.run.code}`
+      }
+    }
+
+    if (!output.trim()) {
+      output = 'Program executed successfully with no output.'
+    }
+
+    console.log('Final output:', output)
+    return NextResponse.json({ output: output.trim() })
+  } catch (error: any) {
+    console.error('Execution error:', error)
     return NextResponse.json(
-      { error: 'Failed to commit to GitHub. Please check your credentials and try again.' },
+      { error: error.message || 'Failed to execute code' },
       { status: 500 }
     )
   }
+}
+
+function getFileExtension(language: string): string {
+  const extensions: { [key: string]: string } = {
+    'javascript': 'js',
+    'typescript': 'ts',
+    'python': 'py',
+    'java': 'java',
+    'cpp': 'cpp',
+    'c': 'c',
+    'csharp': 'cs',
+    'go': 'go',
+    'rust': 'rs',
+    'ruby': 'rb',
+    'php': 'php',
+    'swift': 'swift',
+    'kotlin': 'kt',
+  }
+  return extensions[language.toLowerCase()] || 'txt'
 }
