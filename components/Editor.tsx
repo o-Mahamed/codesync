@@ -13,6 +13,7 @@ import FileManager, { FileData } from './FileManager'
 import FileTabs from './FileTabs'
 import OutputPanel from './OutputPanel'
 import Toast from './Toast'
+import AIAssistant from './AIAssistant'
 
 interface User {
   userId: string
@@ -310,6 +311,11 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
           <CopyLinkButton roomId={roomId} />
           <GitPanel roomId={roomId} code={activeFile.code} language={activeFile.language} />
           <VideoChat socket={socketRef.current} roomId={roomId} currentUser={currentUser} />
+          <AIAssistant 
+            code={activeFile.code} 
+            language={activeFile.language}
+            onCodeUpdate={(newCode) => handleCodeChange(newCode)}
+/>
         </div>
       </div>
 
