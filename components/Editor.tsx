@@ -13,9 +13,7 @@ import FileManager, { FileData } from './FileManager'
 import FileTabs from './FileTabs'
 import OutputPanel from './OutputPanel'
 import Toast from './Toast'
-import AIAssistant from './AIAssistant'
-import ThemeSelector, { Theme } from './ThemeSelector'
-import { monacoThemes, ThemeName } from '@/lib/themes'
+import LivePreview from './LivePreview'
 
 interface User {
   userId: string
@@ -51,6 +49,7 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
   const [users, setUsers] = useState<User[]>([])
   const socketRef = useRef<Socket | null>(null)
   const editorRef = useRef<any>(null)
+  const [showPreview, setShowPreview] = useState(false)
 
   // Toast notifications
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
@@ -62,14 +61,6 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type })
   }
-
-  const [currentTheme, setCurrentTheme] = useState<Theme>({
-  id: 'vs-dark',
-  name: 'VS Dark',
-  editorTheme: 'vs-dark',
-  background: 'bg-gray-900',
-  preview: { bg: '#1e1e1e', text: '#d4d4d4', accent: '#569cd6' }
-})
 
   // Initialize socket connection
   useEffect(() => {
@@ -88,18 +79,6 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
       socket.disconnect()
     }
   }, [])
-
-  useEffect(() => {
-  // Load saved theme
-  const savedTheme = localStorage.getItem('editor-theme')
-  if (savedTheme) {
-    try {
-      setCurrentTheme(JSON.parse(savedTheme))
-    } catch (e) {
-      console.error('Failed to load theme')
-    }
-  }
-}, [])
 
   // Handle room state and events
   useEffect(() => {
@@ -202,6 +181,18 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
     setCurrentUser(user)
   }
 
+  const getFilesByType = () => {
+  const htmlFile = files.find(f => f.language === 'html')
+  const cssFile = files.find(f => f.language === 'css')
+  const jsFile = files.find(f => f.language === 'javascript')
+  
+  return {
+    html: htmlFile?.code || '',
+    css: cssFile?.code || '',
+    js: jsFile?.code || ''
+  }
+}
+
   const handleCodeChange = (value: string | undefined) => {
     if (value === undefined) return
 
@@ -219,8 +210,6 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
     })
   }
 
-  
-
   const handleLanguageChange = (language: string) => {
     // Update local state
     setFiles(prev => prev.map(f => 
@@ -237,14 +226,6 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
 
   const handleEditorMount = (editor: any) => {
     editorRef.current = editor
-
-  // Register custom themes
-  Object.entries(monacoThemes).forEach(([name, theme]) => {
-    monaco.editor.defineTheme(name, theme)
-  })
-
-  // Set initial theme
-  monaco.editor.setTheme(currentTheme.editorTheme)
 
     // Listen for cursor position changes
     editor.onDidChangeCursorPosition((e: any) => {
@@ -282,18 +263,6 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
     socketRef.current?.emit('file-select', { roomId, fileId, userId: currentUser?.id })
   }
 
-  const handleThemeChange = (theme: Theme) => {
-  setCurrentTheme(theme)
-  localStorage.setItem('editor-theme', JSON.stringify(theme))
-  
-  // Update Monaco theme
-  if (editorRef.current) {
-    const monaco = (window as any).monaco
-    if (monaco) {
-      monaco.editor.setTheme(theme.editorTheme)
-    }
-  }
-}
   // Code execution
   const handleRunCode = async () => {
     setIsRunning(true)
@@ -327,7 +296,7 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
   }
 
   return (
-<div className={`h-screen flex flex-col ${currentTheme.background}`}>
+    <div className="h-screen w-screen flex flex-col bg-gray-900 fixed inset-0">
       {/* Username Modal */}
       {!currentUser && <UsernameModal onSubmit={handleUsernameSubmit} />}
 
@@ -341,7 +310,7 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
       )}
 
       {/* Top bar */}
-      <div className="bg-gray-900 px-4 py-2 flex items-center justify-between border-b border-gray-700">
+      <div className="bg-gray-900 px-4 py-2 flex items-center justify-between border-b border-gray-700 flex-shrink-0">
         <div className="flex items-center gap-3">
           <h1 className="text-white font-semibold">CodeSync</h1>
           <span className="text-gray-400 text-sm">Room: {roomId}</span>
@@ -352,22 +321,28 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
             currentLanguage={activeFile.language}
             onLanguageChange={handleLanguageChange}
           />
-          <ThemeSelector 
-            currentTheme={currentTheme.id}
-            onThemeChange={handleThemeChange}
-          />
           <CopyLinkButton roomId={roomId} />
           <GitPanel roomId={roomId} code={activeFile.code} language={activeFile.language} />
           <VideoChat socket={socketRef.current} roomId={roomId} currentUser={currentUser} />
-          <AIAssistant 
-            code={activeFile.code} 
-            language={activeFile.language}
-            onCodeUpdate={(newCode) => handleCodeChange(newCode)}
-/>
+          <button
+          onClick={() => setShowPreview(!showPreview)}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
+            showPreview 
+              ? 'bg-green-600 hover:bg-green-700 text-white' 
+              : 'bg-gray-700 hover:bg-gray-600 text-white'
+          }`}
+          title="Toggle live preview"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          <span>Preview</span>
+        </button>
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* File Manager Sidebar */}
         <FileManager
           files={files}
@@ -398,7 +373,7 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
                 value={activeFile.code}
                 onChange={handleCodeChange}
                 onMount={handleEditorMount}
-                theme={currentTheme.editorTheme}
+                theme="vs-dark"
                 options={{
                   minimap: { enabled: true },
                   fontSize: 14,
@@ -429,6 +404,14 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
           roomId={roomId}
           currentUser={currentUser}
         />
+        {/* Live Preview Panel */}
+      <LivePreview
+        htmlCode={getFilesByType().html}
+        cssCode={getFilesByType().css}
+        jsCode={getFilesByType().js}
+        isVisible={showPreview}
+        onToggle={() => setShowPreview(false)}
+      />
       </div>
     </div>
   )
