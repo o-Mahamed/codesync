@@ -310,37 +310,30 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
       )}
 
       {/* Top bar */}
-      <div className="bg-gray-900 px-4 py-2 flex items-center justify-between border-b border-gray-700 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <h1 className="text-white font-semibold">CodeSync</h1>
-          <span className="text-gray-400 text-sm">Room: {roomId}</span>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <LanguageSelector
-            currentLanguage={activeFile.language}
-            onLanguageChange={handleLanguageChange}
-          />
-          <CopyLinkButton roomId={roomId} />
-          <GitPanel roomId={roomId} code={activeFile.code} language={activeFile.language} />
-          <VideoChat socket={socketRef.current} roomId={roomId} currentUser={currentUser} />
-          <button
-          onClick={() => setShowPreview(!showPreview)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
-            showPreview 
-              ? 'bg-green-600 hover:bg-green-700 text-white' 
-              : 'bg-gray-700 hover:bg-gray-600 text-white'
-          }`}
-          title="Toggle live preview"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-          </svg>
-          <span>Preview</span>
-        </button>
-        </div>
-      </div>
+      <div className="flex items-center gap-3">
+  <LanguageSelector
+    currentLanguage={activeFile.language}
+    onLanguageChange={handleLanguageChange}
+  />
+  <button
+    onClick={() => setShowPreview(!showPreview)}
+    className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
+      showPreview 
+        ? 'bg-green-600 hover:bg-green-700 text-white' 
+        : 'bg-gray-700 hover:bg-gray-600 text-white'
+    }`}
+    title="Toggle live preview"
+  >
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+    </svg>
+    <span>Preview</span>
+  </button>
+  <CopyLinkButton roomId={roomId} />
+  <GitPanel roomId={roomId} code={activeFile.code} language={activeFile.language} />
+  <VideoChat socket={socketRef.current} roomId={roomId} currentUser={currentUser} />
+</div>
 
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* File Manager Sidebar */}

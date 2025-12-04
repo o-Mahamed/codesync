@@ -41,8 +41,11 @@ export default function LivePreview({ htmlCode, cssCode, jsCode, isVisible, onTo
     }
   }, [htmlCode, cssCode, jsCode])
 
+  const hasContent = htmlCode.trim() || cssCode.trim() || jsCode.trim()
+
   const refreshPreview = () => {
     if (!iframeRef.current) return
+    if (!hasContent) return
 
     setIsRefreshing(true)
     setConsoleOutput([])
@@ -259,14 +262,34 @@ export default function LivePreview({ htmlCode, cssCode, jsCode, isVisible, onTo
 
       {/* Preview iframe */}
       <div className="flex-1 overflow-auto bg-white">
-        <div className={`${viewportSizes[viewMode]} h-full transition-all duration-300`}>
-          <iframe
-            ref={iframeRef}
-            className="w-full h-full border-none bg-white"
-            sandbox="allow-scripts allow-modals allow-forms allow-popups"
-            title="Live Preview"
-          />
-        </div>
+        {!hasContent ? (
+          <div className="flex items-center justify-center h-full text-center p-8">
+            <div>
+              <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">No Preview Available</h3>
+              <p className="text-gray-500 text-sm mb-4">Create HTML, CSS, or JavaScript files to see a live preview</p>
+              <div className="text-left inline-block bg-gray-100 p-4 rounded">
+                <p className="text-xs text-gray-600 mb-2">Quick Start:</p>
+                <ol className="text-xs text-gray-700 space-y-1">
+                  <li>1. Create a file named <code className="bg-white px-1 rounded">index.html</code></li>
+                  <li>2. Add some HTML: <code className="bg-white px-1 rounded">&lt;h1&gt;Hello!&lt;/h1&gt;</code></li>
+                  <li>3. Preview will appear automatically!</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className={`${viewportSizes[viewMode]} h-full transition-all duration-300`}>
+            <iframe
+              ref={iframeRef}
+              className="w-full h-full border-none bg-white"
+              sandbox="allow-scripts allow-modals allow-forms allow-popups"
+              title="Live Preview"
+            />
+          </div>
+        )}
       </div>
 
       {/* Console */}
