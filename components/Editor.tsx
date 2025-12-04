@@ -14,6 +14,8 @@ import FileTabs from './FileTabs'
 import OutputPanel from './OutputPanel'
 import Toast from './Toast'
 import AIAssistant from './AIAssistant'
+import ThemeSelector, { Theme } from './ThemeSelector'
+import { monacoThemes, ThemeName } from '@/lib/themes'
 
 interface User {
   userId: string
@@ -61,6 +63,14 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
     setToast({ message, type })
   }
 
+  const [currentTheme, setCurrentTheme] = useState<Theme>({
+  id: 'vs-dark',
+  name: 'VS Dark',
+  editorTheme: 'vs-dark',
+  background: 'bg-gray-900',
+  preview: { bg: '#1e1e1e', text: '#d4d4d4', accent: '#569cd6' }
+})
+
   // Initialize socket connection
   useEffect(() => {
     const socket = io('http://localhost:3000')
@@ -78,6 +88,18 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
       socket.disconnect()
     }
   }, [])
+
+  useEffect(() => {
+  // Load saved theme
+  const savedTheme = localStorage.getItem('editor-theme')
+  if (savedTheme) {
+    try {
+      setCurrentTheme(JSON.parse(savedTheme))
+    } catch (e) {
+      console.error('Failed to load theme')
+    }
+  }
+}, [])
 
   // Handle room state and events
   useEffect(() => {
@@ -197,6 +219,8 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
     })
   }
 
+  
+
   const handleLanguageChange = (language: string) => {
     // Update local state
     setFiles(prev => prev.map(f => 
@@ -213,6 +237,14 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
 
   const handleEditorMount = (editor: any) => {
     editorRef.current = editor
+
+  // Register custom themes
+  Object.entries(monacoThemes).forEach(([name, theme]) => {
+    monaco.editor.defineTheme(name, theme)
+  })
+
+  // Set initial theme
+  monaco.editor.setTheme(currentTheme.editorTheme)
 
     // Listen for cursor position changes
     editor.onDidChangeCursorPosition((e: any) => {
@@ -250,6 +282,18 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
     socketRef.current?.emit('file-select', { roomId, fileId, userId: currentUser?.id })
   }
 
+  const handleThemeChange = (theme: Theme) => {
+  setCurrentTheme(theme)
+  localStorage.setItem('editor-theme', JSON.stringify(theme))
+  
+  // Update Monaco theme
+  if (editorRef.current) {
+    const monaco = (window as any).monaco
+    if (monaco) {
+      monaco.editor.setTheme(theme.editorTheme)
+    }
+  }
+}
   // Code execution
   const handleRunCode = async () => {
     setIsRunning(true)
@@ -283,7 +327,7 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-900">
+<div className={`h-screen flex flex-col ${currentTheme.background}`}>
       {/* Username Modal */}
       {!currentUser && <UsernameModal onSubmit={handleUsernameSubmit} />}
 
@@ -307,6 +351,10 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
           <LanguageSelector
             currentLanguage={activeFile.language}
             onLanguageChange={handleLanguageChange}
+          />
+          <ThemeSelector 
+            currentTheme={currentTheme.id}
+            onThemeChange={handleThemeChange}
           />
           <CopyLinkButton roomId={roomId} />
           <GitPanel roomId={roomId} code={activeFile.code} language={activeFile.language} />
@@ -350,7 +398,7 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
                 value={activeFile.code}
                 onChange={handleCodeChange}
                 onMount={handleEditorMount}
-                theme="vs-dark"
+                theme={currentTheme.editorTheme}
                 options={{
                   minimap: { enabled: true },
                   fontSize: 14,
