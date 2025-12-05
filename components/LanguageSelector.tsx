@@ -8,6 +8,8 @@ interface LanguageSelectorProps {
 }
 
 const languages = [
+  { id: 'html', name: 'HTML', color: 'text-orange-500' },
+  { id: 'css', name: 'CSS', color: 'text-blue-500' },
   { id: 'javascript', name: 'JavaScript', color: 'text-yellow-400' },
   { id: 'typescript', name: 'TypeScript', color: 'text-blue-400' },
   { id: 'python', name: 'Python', color: 'text-blue-300' },
@@ -21,8 +23,6 @@ const languages = [
   { id: 'php', name: 'PHP', color: 'text-indigo-400' },
   { id: 'swift', name: 'Swift', color: 'text-orange-400' },
   { id: 'kotlin', name: 'Kotlin', color: 'text-purple-400' },
-  { id: 'html', name: 'HTML', color: 'text-orange-500' },
-  { id: 'css', name: 'CSS', color: 'text-blue-500' },
 ]
 
 export default function LanguageSelector({ currentLanguage, onLanguageChange }: LanguageSelectorProps) {
