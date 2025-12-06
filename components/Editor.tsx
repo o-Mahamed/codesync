@@ -462,6 +462,7 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
               isRunning={isRunning}
               onRun={handleRunCode}
               onClear={() => setOutput('')}
+              language={activeFile.language}
             />
           </div>
         </div>

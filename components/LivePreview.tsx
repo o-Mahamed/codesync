@@ -118,15 +118,8 @@ export default function LivePreview({ htmlCode, cssCode, jsCode, isVisible, onTo
 </html>
     `
 
-    // Update iframe content
-    const iframe = iframeRef.current
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
-
-    if (iframeDoc) {
-      iframeDoc.open()
-      iframeDoc.write(fullHTML)
-      iframeDoc.close()
-    }
+    // Use srcdoc instead of contentDocument to avoid sandbox issues
+    iframeRef.current.srcdoc = fullHTML
 
     setTimeout(() => setIsRefreshing(false), 300)
   }
@@ -285,7 +278,7 @@ export default function LivePreview({ htmlCode, cssCode, jsCode, isVisible, onTo
             <iframe
               ref={iframeRef}
               className="w-full h-full border-none bg-white"
-              sandbox="allow-scripts allow-modals allow-forms allow-popups"
+              sandbox="allow-scripts allow-modals allow-forms allow-popups allow-same-origin"
               title="Live Preview"
             />
           </div>
