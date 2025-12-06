@@ -15,8 +15,11 @@ export default function LivePreview({ htmlCode, cssCode, jsCode, isVisible, onTo
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [consoleOutput, setConsoleOutput] = useState<string[]>([])
   const [showConsole, setShowConsole] = useState(false)
+  const [width, setWidth] = useState(600)
+  const [isResizing, setIsResizing] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const refreshTimeoutRef = useRef<NodeJS.Timeout>()
+  const resizeRef = useRef<HTMLDivElement>(null)
 
   const viewportSizes = {
     desktop: 'w-full',
@@ -132,9 +135,27 @@ export default function LivePreview({ htmlCode, cssCode, jsCode, isVisible, onTo
       }
     }
 
+    // Handle resize
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return
+      const newWidth = window.innerWidth - e.clientX
+      setWidth(Math.max(300, Math.min(newWidth, window.innerWidth - 400)))
+    }
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+    }
+
     window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [])
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    
+    return () => {
+      window.removeEventListener('message', handleMessage)
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isResizing])
 
   const handleOpenInNewWindow = () => {
     const newWindow = window.open('', '_blank')
@@ -162,7 +183,15 @@ export default function LivePreview({ htmlCode, cssCode, jsCode, isVisible, onTo
   if (!isVisible) return null
 
   return (
-    <div className="w-96 bg-gray-800 border-l border-gray-700 flex flex-col">
+    <div className="bg-gray-800 border-l border-gray-700 flex flex-col relative" style={{ width: `${width}px` }}>
+      {/* Resize handle */}
+      <div
+        ref={resizeRef}
+        onMouseDown={() => setIsResizing(true)}
+        className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 transition-colors z-10"
+        style={{ marginLeft: '-2px' }}
+      />
+      
       {/* Header */}
       <div className="bg-gray-900 px-4 py-2 border-b border-gray-700 flex items-center justify-between">
         <div className="flex items-center gap-2">
