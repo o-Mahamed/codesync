@@ -88,7 +88,7 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
 
   // Initialize socket connection
   useEffect(() => {
-    const socket = io('http://localhost:3000')
+    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000')
     socketRef.current = socket
 
     socket.on('connect', () => {

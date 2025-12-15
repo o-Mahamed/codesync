@@ -1,0 +1,14 @@
+{
+  "name": "codesync-socket-server",
+  "version": "1.0.0",
+  "main": "server.ts",
+  "scripts": {
+    "start": "tsx server.ts",
+    "dev": "tsx watch server.ts"
+  },
+  "dependencies": {
+    "socket.io": "^4.7.2",
+    "next": "^14.0.0",
+    "tsx": "^4.7.0"
+  }
+}

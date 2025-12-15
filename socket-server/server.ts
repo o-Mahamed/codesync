@@ -23,11 +23,11 @@ app.prepare().then(() => {
   })
 
   const io = new SocketIOServer(httpServer, {
-    cors: {
-      origin: '*',
-      methods: ['GET', 'POST']
-    }
-  })
+  cors: {
+    origin: '*',  // We'll restrict this after deployment
+    methods: ['GET', 'POST']
+  }
+})
 
   // Store room data
   interface User {
