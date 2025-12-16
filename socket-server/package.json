@@ -1,6 +1,7 @@
 {
   "name": "codesync-socket-server",
   "version": "1.0.0",
+  "description": "WebSocket server for CodeSync collaborative editor",
   "main": "server.ts",
   "scripts": {
     "start": "tsx server.ts",
@@ -8,7 +9,9 @@
   },
   "dependencies": {
     "socket.io": "^4.7.2",
-    "next": "^14.0.0",
     "tsx": "^4.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
