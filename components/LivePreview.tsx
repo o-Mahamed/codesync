@@ -17,8 +17,9 @@ export default function LivePreview({ htmlCode, cssCode, jsCode, isVisible, onTo
   const [showConsole, setShowConsole] = useState(false)
   const [width, setWidth] = useState(600)
   const [isResizing, setIsResizing] = useState(false)
+  const [isFullWidth, setIsFullWidth] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const refreshTimeoutRef = useRef<NodeJS.Timeout>()
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const resizeRef = useRef<HTMLDivElement>(null)
 
   const viewportSizes = {
