@@ -8,14 +8,6 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-
-model User {
-  id    String @id @default(cuid())
-  email String @unique
-  name  String?
-  rooms Room[]
-}
-
 model Room {
   id        String   @id @default(cuid())
   name      String
@@ -23,5 +15,12 @@ model Room {
   language  String   @default("javascript")
   createdAt DateTime @default(now())
   ownerId   String
-  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner     User     @relation(fields: [ownerId], references: [id])
+}
+
+model User {
+  id    String @id @default(cuid())
+  email String @unique
+  name  String?
+  rooms Room[]
 }
