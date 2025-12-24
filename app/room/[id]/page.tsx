@@ -1,23 +1,39 @@
-import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import Editor from '@/components/Editor'
+import { prisma } from '@/lib/prisma'
 
-export const revalidate = 0
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
-export default async function RoomPage({ params }: { params: { id: string } }) {
-  const room = await prisma.room.findUnique({
-    where: { id: params.id }
-  })
+interface PageProps {
+  params: Promise<{ id: string }>
+}
 
-  if (!room) {
+export default async function RoomPage({ params }: PageProps) {
+  const { id } = await params
+
+  if (!id) {
     notFound()
   }
 
-  return (
-    <div className="h-screen flex flex-col">
-      <div className="flex-1 overflow-hidden">
-        <Editor roomId={room.id} />
+  try {
+    const room = await prisma.room.findUnique({
+      where: { id }
+    })
+
+    if (!room) {
+      notFound()
+    }
+
+    return (
+      <div className="h-screen flex flex-col">
+        <div className="flex-1 overflow-hidden">
+          <Editor roomId={room.id} />
+        </div>
       </div>
-    </div>
-  )
+    )
+  } catch (error) {
+    console.error('Error fetching room:', error)
+    notFound()
+  }
 }
