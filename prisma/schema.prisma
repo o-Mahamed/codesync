@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -15,12 +16,4 @@ model Room {
   language  String   @default("javascript")
   createdAt DateTime @default(now())
   ownerId   String
-  owner     User     @relation(fields: [ownerId], references: [id])
-}
-
-model User {
-  id    String @id @default(cuid())
-  email String @unique
-  name  String?
-  rooms Room[]
 }
