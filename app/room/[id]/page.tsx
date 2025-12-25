@@ -16,24 +16,24 @@ export default async function RoomPage({ params }: PageProps) {
     notFound()
   }
 
-  try {
-    const room = await prisma.room.findUnique({
-      where: { id }
-    })
-
-    if (!room) {
-      notFound()
-    }
-
-    return (
-      <div className="h-screen flex flex-col">
-        <div className="flex-1 overflow-hidden">
-          <Editor roomId={room.id} />
-        </div>
-      </div>
-    )
-  } catch (error) {
+  // Handle database fetch outside JSX
+  const room = await prisma.room.findUnique({
+    where: { id }
+  }).catch((error) => {
     console.error('Error fetching room:', error)
+    return null
+  })
+
+  if (!room) {
     notFound()
   }
+
+  // Now it's safe to return JSX - no try/catch wrapping it
+  return (
+    <div className="h-screen flex flex-col">
+      <div className="flex-1 overflow-hidden">
+        <Editor roomId={room.id} />
+      </div>
+    </div>
+  )
 }
