@@ -1,9 +1,8 @@
 import { notFound } from 'next/navigation'
 import Editor from '@/components/Editor'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -16,19 +15,17 @@ export default async function RoomPage({ params }: PageProps) {
     notFound()
   }
 
-  // Handle database fetch outside JSX
-  const room = await prisma.room.findUnique({
-    where: { id }
-  }).catch((error) => {
-    console.error('Error fetching room:', error)
-    return null
-  })
+  const { data: room, error } = await supabase
+    .from('Room')
+    .select('*')
+    .eq('id', id)
+    .single()
 
-  if (!room) {
+  if (error || !room) {
+    console.error('Error fetching room:', error)
     notFound()
   }
 
-  // Now it's safe to return JSX - no try/catch wrapping it
   return (
     <div className="h-screen flex flex-col">
       <div className="flex-1 overflow-hidden">
