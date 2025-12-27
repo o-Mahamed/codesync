@@ -1,7 +1,7 @@
 {
   "name": "codesync-socket-server",
   "version": "1.0.0",
-  "description": "WebSocket server for CodeSync collaborative editor",
+  "description": "WebSocket server for CodeSync",
   "main": "server.ts",
   "scripts": {
     "start": "tsx server.ts",
