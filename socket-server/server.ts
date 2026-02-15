@@ -1,7 +1,7 @@
 import { createServer } from 'http'
 import { Server as SocketIOServer } from 'socket.io'
 
-const port = parseInt(process.env.PORT || '3000', 10)
+const port = parseInt(process.env.PORT || '3001', 10)
 
 console.log('Starting socket server...')
 console.log('Environment:', process.env.NODE_ENV)
