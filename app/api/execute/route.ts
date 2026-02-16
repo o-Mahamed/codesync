@@ -45,12 +45,18 @@ export async function POST(request: Request) {
     }
 
     console.log('✅ Using Piston API for', pistonLang.language)
+    console.log('Sending to Piston:', {
+    language: pistonLang.language,
+    version: pistonLang.version,
+    fileName: `main.${getFileExtension(language)}`
+      });
 
     // Call Piston API
     const pistonResponse = await fetch('https://emkc.org/api/v2/piston/execute', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': '',
       },
       body: JSON.stringify({
         language: pistonLang.language,
