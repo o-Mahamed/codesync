@@ -276,9 +276,26 @@ export default function CollaborativeEditor({ roomId }: CollaborativeEditorProps
 
   // File management handlers
   const handleFileCreate = (name: string, language: string) => {
-    socketRef.current?.emit('file-create', { roomId, name, language })
+  const socket = socketRef.current;
+  
+  console.log("--- DEBUG: Create File ---");
+  console.log("Socket Status:", socket?.connected ? "Connected" : "Disconnected");
+  console.log("Target Room ID:", roomId);
+  console.log("File Info:", { name, language });
+
+  if (!socket?.connected) {
+    console.error("Action failed: Socket is not connected to the server.");
+    return;
   }
 
+  if (!roomId) {
+    console.error("Action failed: roomId is missing.");
+    return;
+  }
+
+  socket.emit('file-create', { roomId, name, language });
+  console.log("Emit sent!");
+};
   const handleFileRename = (fileId: string, newName: string) => {
     socketRef.current?.emit('file-rename', { roomId, fileId, newName })
   }
