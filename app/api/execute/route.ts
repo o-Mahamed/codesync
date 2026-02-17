@@ -52,15 +52,19 @@ export async function POST(request: Request) {
       });
 
     // Call Piston API
-    const pistonResponse = await fetch('https://emkc.org/api/v2/piston/execute', {
+    // app/api/execute/route.ts
+
+    // Change the URL from the emkc.org address to your local Docker address
+    const PISTON_URL = 'http://localhost:2000/api/v2/execute';
+
+    const pistonResponse = await fetch(PISTON_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': '',
       },
       body: JSON.stringify({
         language: pistonLang.language,
-        version: pistonLang.version,
+        version: "*", // Local Piston handles wildcards well
         files: [
           {
             name: `main.${getFileExtension(language)}`,
@@ -68,7 +72,7 @@ export async function POST(request: Request) {
           },
         ],
       }),
-    })
+    });
 
     if (!pistonResponse.ok) {
       console.log('❌ Piston API failed:', pistonResponse.status)
